@@ -15,7 +15,6 @@ namespace HomeEnergyApi.Dtos
             
             CreateMap<UtilityProviderDto, UtilityProvider>();
             CreateMap<UserDtoV1, User>();
-            CreateMap<UserDtoV2, User>();
         }
     }
 }
