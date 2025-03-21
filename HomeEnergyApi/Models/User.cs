@@ -6,6 +6,6 @@ namespace HomeEnergyApi.Models
         public string Username { get; set; }
         public string HashedPassword { get; set; }
         public string Role { get; set; }
-        public string EncryptedHomeStreetAddress { get; set; }
+        public string EncryptedAddress { get; set; }
     }
 }

@@ -2,6 +2,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using HomeEnergyApi.Dtos;
+using HomeEnergyApi.Models;
 using HomeEnergyApi.Tests.Extensions;
 
 
@@ -66,7 +67,7 @@ public class ControllersTests
         HttpResponseMessage? newUserResponse = await RegisterUser(_username, _password, "Admin", "123 Test. St");
 
         Assert.True(newUserResponse?.IsSuccessStatusCode,
-            $"HomeEnergyApi did not return successful HTTP Response Code on attempting to register new user at /authentication/register; instead received {(int?)newUserResponse?.StatusCode}: {newUserResponse?.StatusCode}");
+            $"HomeEnergyApi did not return successful HTTP Response Code on attempting to register new user at v1/authentication/register; instead received {(int?)newUserResponse?.StatusCode}: {newUserResponse?.StatusCode}");
     }
 
     [Fact, TestPriority(4)]
@@ -89,7 +90,7 @@ public class ControllersTests
         bool isValidToken = token.Contains("\"token\":\"");
 
         Assert.True(isValidToken,
-            $"HomeEnergyApi did not return a valid response trying to receive bearer token for a registered user\nReceived:{token}");
+            $"HomeEnergyApi did not return a valid response trying to receive bearer token for a registered user at v1/authentication/token\nReceived:{token}");
     }
 
     [Theory, TestPriority(6)]
@@ -192,11 +193,32 @@ public class ControllersTests
             $"HomeEnergyApi did not return the expected result on GET request at {url}\nExpected:{expected}\nReceived:{bangResponseStr}");
     }
 
+    [Fact, TestPriority(9)]
+    public async Task HomeEnergyApiCanRegisterANewUserV2()
+    {
+        HttpResponseMessage? newUserResponse = await RegisterUserV2(_username, _password, "Admin", "123 Test. St", "Test City", 12345);
+
+        Assert.True(newUserResponse?.IsSuccessStatusCode,
+            $"HomeEnergyApi did not return successful HTTP Response Code on attempting to register new user at v2/authentication/register; instead received {(int?)newUserResponse?.StatusCode}: {newUserResponse?.StatusCode}");
+    }
+
+    [Fact, TestPriority(10)]
+    public async Task HomeEnergyApiCanProvideABearerTokenV2()
+    {
+        await RegisterUserV2(_username, _password, "Admin", "123 Test. St", "Test City", 12345);
+        string token = await GetBearerTokenV2(_username, _password, "Admin", "123 Test. St", "Test City", 12345, false);
+
+        bool isValidToken = token.Contains("\"token\":\"");
+
+        Assert.True(isValidToken,
+            $"HomeEnergyApi did not return a valid response trying to receive bearer token for a registered user at v2/authentication/token\nReceived:{token}");
+    }
+
     public async Task<string> GetBearerToken(string username, string password, string role, string homeStreetAddress, bool trimToken)
     {
         var client = _factory.CreateClient();
-        HttpRequestMessage sendRequest = new HttpRequestMessage(HttpMethod.Post, "/Authentication/token");
-        UserDto userDto = new();
+        HttpRequestMessage sendRequest = new HttpRequestMessage(HttpMethod.Post, "v1/authentication/token");
+        UserDtoV1 userDto = new();
         userDto.Username = username;
         userDto.Password = password;
         userDto.Role = role;
@@ -216,15 +238,66 @@ public class ControllersTests
             return responseStr;
     }
 
+    public async Task<string> GetBearerTokenV2(string username, string password, string role, string streetAddress, string city, int zipCode, bool trimToken)
+    {
+        var client = _factory.CreateClient();
+        HttpRequestMessage sendRequest = new HttpRequestMessage(HttpMethod.Post, "v2/authentication/token");
+        UserDtoV2 userDto = new();
+        userDto.Username = username;
+        userDto.Password = password;
+        userDto.Role = role;
+        FullAddress fullAddress = new FullAddress();
+        fullAddress.StreetAddress = streetAddress;
+        fullAddress.City = city;
+        fullAddress.ZipCode = zipCode;
+        userDto.Address = fullAddress;
+        string userDtoStr = JsonSerializer.Serialize(userDto);
+
+        sendRequest.Content = new StringContent(userDtoStr,
+                                        Encoding.UTF8,
+                                        "application/json");
+
+        var response = await client.SendAsync(sendRequest);
+        var responseStr = await response.Content.ReadAsStringAsync();
+
+        if (trimToken)
+            return responseStr.Trim(new char[] { '{', '}', '"' }).Substring(8);
+        else
+            return responseStr;
+    }
+
     public async Task<HttpResponseMessage?> RegisterUser(string username, string password, string role, string homeStreetAddress)
     {
         var client = _factory.CreateClient();
-        HttpRequestMessage sendRequest = new HttpRequestMessage(HttpMethod.Post, "/Authentication/register");
-        UserDto userDto = new();
+        HttpRequestMessage sendRequest = new HttpRequestMessage(HttpMethod.Post, "v1/authentication/register");
+        UserDtoV1 userDto = new();
         userDto.Username = username;
         userDto.Password = password;
         userDto.Role = role;
         userDto.HomeStreetAddress = homeStreetAddress;
+        string userDtoStr = JsonSerializer.Serialize(userDto);
+
+        sendRequest.Content = new StringContent(userDtoStr,
+                                        Encoding.UTF8,
+                                        "application/json");
+
+        var response = await client.SendAsync(sendRequest);
+        return response;
+    }
+
+    public async Task<HttpResponseMessage?> RegisterUserV2(string username, string password, string role, string streetAddress, string city, int zipCode)
+    {
+        var client = _factory.CreateClient();
+        HttpRequestMessage sendRequest = new HttpRequestMessage(HttpMethod.Post, "v2/authentication/register");
+        UserDtoV2 userDto = new();
+        userDto.Username = username;
+        userDto.Password = password;
+        userDto.Role = role;
+        FullAddress fullAddress = new FullAddress();
+        fullAddress.StreetAddress = streetAddress;
+        fullAddress.City = city;
+        fullAddress.ZipCode = zipCode;
+        userDto.Address = fullAddress;
         string userDtoStr = JsonSerializer.Serialize(userDto);
 
         sendRequest.Content = new StringContent(userDtoStr,
@@ -263,10 +336,5 @@ public class ControllersTests
         return build;
     }
 
-    public void CreateNewUser()
-    {
-        _username = System.Guid.NewGuid().ToString();
-        _password = "testPassword";
-    }
 }
 
